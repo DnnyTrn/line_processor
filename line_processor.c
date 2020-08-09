@@ -11,18 +11,33 @@
 
 int main(void){
 
-    char input[OUTPUTLINE_LENGTH+1] = {'\0'};
-    int n = OUTPUTLINE_LENGTH;
-    while(fgets(input, n, stdin) != NULL){
+    char input[OUTPUTLINE_LENGTH+1] = "", 
+        beginning[OUTPUTLINE_LENGTH+1] = "";
 
-        // print partial line (lines that have less than 80 chars)
+    int n = OUTPUTLINE_LENGTH;
+    while(fgets(input, n+1, stdin) != NULL){
+    
+        // terminate program on DONE\n
+       char * done = strstr(input, "DONE\n");
+        if(done && strlen(input) == 5) break;
+    
+        // print partial line if there is one
+        if(strlen(beginning) > 0){
+            printf("%s", beginning);
+            memset(beginning, 0, sizeof(beginning));
+        }
+
+        // check for partial line (lines that have less than 80 chars)
         if(strchr(input, '\n') != NULL){    //partial lines contain a newline char
             input[strcspn(input, "\n")] = ' ';  // replace newline with space
-            printf("%s",input);
+            strcpy(beginning, input);   //partial line will be printed in next iteration of fgets 
             n -= strlen(input);     //offset the next fgets by n - length of partial line
             continue;
         }
-        n = OUTPUTLINE_LENGTH;
+
+        n = OUTPUTLINE_LENGTH;  //number of chars to fgets from stdin
+        
+        // process line before printing
         puts(input);
     }
 
