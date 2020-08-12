@@ -41,26 +41,36 @@ void *sendOut(void *arg) {
     Buffer *bufferConsumer = &buffer_array[2];
 
     char line[INPUTLINE_LENGTH + 1] = "";
+    char outputline[OUTPUTLINE_LENGTH + 1] = "";
+    size_t n;   //offset for outputline
     int work = 1;
     while (work) {
         consumerGetLine(bufferConsumer, line); // aquire line from buffer 3
         checkExitWord(NULL, line, END_MARKER, &work); //check if line has exit word
         if(work == 1){
-
-            fprintf(stdout, "%s\n", line);  fflush(stdout);
+            n = strlen(outputline);     // n represents number of characters from the last line
+            size_t offset = 0, line_length = strlen(line);
+            while(offset < line_length){
+                strncpy(outputline+n, line+offset, OUTPUTLINE_LENGTH-n);
+                n = strlen(outputline);
+                offset += n;
+                if(n == OUTPUTLINE_LENGTH){
+                    fprintf(stdout, "%s\n", outputline); 
+                    memset(outputline, 0, sizeof(outputline));
+                    n = 0;  //reset offset for outputline
+                }
+                printf("%zu\n", strlen(outputline));
+                fflush(stdout);
+            }
         }
     }
-    // fprintf(stderr, "output thread done\n");
     return NULL;
 }
 
-void *plusSignRemove(void  *arg)
+void *plusSignRemove(void *arg)
 {
-    //thread is consumer for buffer 2
-    Buffer *bufferConsumer = &buffer_array[1];
-
-    // thread is producer for buffer 3
-    Buffer *bufferProducer = &buffer_array[2];
+    Buffer *bufferConsumer = &buffer_array[1];    //thread is consumer for buffer 2
+    Buffer *bufferProducer = &buffer_array[2];    // thread is producer for buffer 3
 
     char line[INPUTLINE_LENGTH + 1] = "";
     int work = 1;
@@ -68,18 +78,13 @@ void *plusSignRemove(void  *arg)
     {
         consumerGetLine(bufferConsumer, line);
         producerLock(bufferProducer);
-
         checkExitWord(bufferProducer, line, END_MARKER, &work);        // check if line is end marker
-
         if (work == 1) {
-            _plusSignRemove(line);            //producer work: replace every instance of ++ with ^
-            producerPutLine(bufferProducer, line);            // put formatted line onto buffer 3, increment fill_ptr and buffer 3 count
-
+            _plusSignRemove(line);     //producer work: replace every instance of ++ with ^
+            producerPutLine(bufferProducer, line);     // put formatted line onto buffer 3, increment fill_ptr and buffer 3 count
         }
-        producerUnlock(bufferProducer);        // signal to waiting threads that buffer 3 has lines, release mutex lock on buffer 3
+        producerUnlock(bufferProducer); // signal to waiting threads that buffer 3 has lines, release mutex lock on buffer 3
     }
-    // fprintf(stderr, "plusSign thread done\n");
-
     return NULL;
 }
 
@@ -106,30 +111,22 @@ void *getInput(void *args)
 {
     Buffer *buffer = &buffer_array[0];
     char line[INPUTLINE_LENGTH + 1] = "";
-    char *done = NULL;
     int work = 1;
-
     while (work)
     {
         fgets(line, INPUTLINE_LENGTH + 1, stdin);
 
-        // sleep producer if buffer is full, wait for empty signal
-        producerLock(buffer);
+        producerLock(buffer);  // sleep producer if buffer is full, wait for empty signal
 
-        // returns 1 if exit word is found
         checkExitWord(buffer, line, "DONE\n", &work);
         if (work == 1) {
-            // add line to buffer
-            producerPutLine(buffer, line);
+            producerPutLine(buffer, line);// produce lines by storing stdin into buffer
         }
-        // produce lines by storing stdin into buffer
         producerUnlock(buffer);
     }
-    // fprintf(stderr, "getInput done\n");
     return NULL;
 }
 // Thread function that converts the line separator into a space
-// shares buffer01 with t1/getInput()
 void *lineSeparator(void *args)
 {
     Buffer *bufferConsumer = &buffer_array[0];    // lineSeparator is a consumer for buffer 1
@@ -149,7 +146,6 @@ void *lineSeparator(void *args)
         }
         producerUnlock(bufferProducer); // signal full to plus sign thread, release lock on buffer 2
     }
-    // fprintf(stderr, "linesep return\n");
     return NULL;
 }
 
@@ -163,22 +159,19 @@ int destroyMutex()
     pthread_cond_destroy(&full);
     return r;
 }
-
 int init()
 {
     int i, r = 0;
-    // initialize mutexes, error handler doesn't quit program
     for (i = 0; i < NUM_BUFFERS; i++)
     {
-        r = pthread_mutex_init(&buffer_array[i].mutex, NULL);
+        r = pthread_mutex_init(&buffer_array[i].mutex, NULL);    // initialize mutexes, error handler doesn't quit program
         if (r != 0)
         {
             perror("mutex_init error"); //exit(0);
         }
     }
 
-    // ERROR handler for pthread_cond_init without exit()
-    r = pthread_cond_init(&full, NULL);
+    r = pthread_cond_init(&full, NULL);    // ERROR handler for pthread_cond_init without exit()
     if (r != 0)
         perror("pthread_cond_init error");
     r = pthread_cond_init(&empty, NULL);
@@ -189,21 +182,18 @@ int init()
 
 int producerLock(Buffer *buffer) {
     pthread_mutex_lock(&buffer->mutex);
-
-    // sleep producer if buffer is full, wait for empty signal
-    while (buffer->count == BUFFERSIZE)
+    while (buffer->count == BUFFERSIZE)    // sleep producer if buffer is full, wait for empty signal from consumerGetLine()
         pthread_cond_wait(&empty, &buffer->mutex);
     return 0;
 }
 
 int producerUnlock(Buffer *buffer) {
-
     pthread_cond_signal(&full);
     pthread_mutex_unlock(&buffer->mutex);
     return 0;
 }
 int _incrementProducerIndex(Buffer * buffer) {
-    size_t *fill_ptr = &buffer->fill_ptr; //producer's index to buffer0
+    size_t *fill_ptr = &buffer->fill_ptr; //producer's index to buffer
     *fill_ptr = (*fill_ptr + 1) % BUFFERSIZE;
     buffer->count++;
     return 0;
@@ -213,24 +203,21 @@ void checkExitWord(Buffer * buffer, const char* line, const char * exitWord, int
     {
         if(buffer != NULL)
             producerPutLine(buffer, END_MARKER); // put end marker onto buffer as a producer to signal consumer when to stop working
-        *work = 0; //signal current thread to stop working and return to main
+        *work = 0; //exit while loop of current thread to stop working and return to main
     }
 }
 
 int consumerGetLine(Buffer * buffer, char * line) {
-    pthread_mutex_lock(&buffer->mutex);
-    // sleep thread if buffer 1 is empty, wait for full signal from input thread
+    pthread_mutex_lock(&buffer->mutex); //consumer aquire lock on buffer
     while (buffer->count == 0)
-        pthread_cond_wait(&full, &buffer->mutex);
+        pthread_cond_wait(&full, &buffer->mutex);    // sleep consumer if buffer is empty, wait for full signal from producer thread
 
-    size_t *use_ptr = &buffer->use_ptr;
-    // consumer: get line from buffer 1, update consumer index and buffer 1 count
-    strcpy(line, buffer->input[*use_ptr]);
+    size_t *use_ptr = &buffer->use_ptr; //consumer pointer to buffer
+    strcpy(line, buffer->input[*use_ptr]);  // consumer: get line from buffer , increment consumer index and decrement buffer count
     *use_ptr = (*use_ptr + 1) % BUFFERSIZE;
     buffer->count--;
 
-    // signal empty to input thread, release lock to buffer 1
-    pthread_cond_signal(&empty);
+    pthread_cond_signal(&empty);    // signal empty to waiting producer threads (producerLock() function), release lock to buffer 
     pthread_mutex_unlock(&buffer->mutex);
     return 0;
 }
@@ -249,12 +236,10 @@ int _plusSignRemove(char * line) {
         if (line[i] == '+' && line[i + 1] == '+')
         {
             line[i] = '^';
-            // shift each letter left by 1
             for (j = i + 1; j < len - 1; j++) {
-                line[j] = line[j + 1];
+                line[j] = line[j + 1];  // shift each letter left by 1
             }
-            // erase last letter since it's a duplicate
-            line[len - 1] = '\0';
+            line[len - 1] = '\0';   // erase last letter since it's a duplicate
         }
     }
     return 0;
