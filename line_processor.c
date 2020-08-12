@@ -28,9 +28,9 @@ void *getInput(void *args);
 void *sendOut(void *arg);
 void *plusSignRemove(void *args);
 int _plusSignRemove(char *line);
-void checkExitWord(Buffer *buffer, const char *line, const char *exitWord, int *work);
-int producerPutLine(Buffer *buffer, char *line);
-int consumerGetLine(Buffer *buffer, char *line);
+void checkExitWord( Buffer *const buffer, char *const line,  char *const exitWord, int *const work);
+int producerPutLine(Buffer *const buffer,  char *const line);
+int consumerGetLine(Buffer *const buffer,  char *const line);
 
 int main(void)
 {
@@ -180,7 +180,7 @@ int init()
     return r;
 }
 
-void checkExitWord(Buffer *buffer, const char *line, const char *exitWord, int *work)
+void checkExitWord( Buffer *const buffer, char *const line,  char *const exitWord, int *const work)
 {
     if (strcmp(exitWord, line) == 0) //check if line is the exit word.
     {
@@ -191,7 +191,7 @@ void checkExitWord(Buffer *buffer, const char *line, const char *exitWord, int *
 }
 
 // Thread-safe function to aquire line from buffer
-int consumerGetLine(Buffer *buffer, char *line)
+int consumerGetLine(Buffer *const buffer, char *const line)
 {
     pthread_mutex_lock(&buffer->mutex); //consumer aquire lock on buffer
     while (buffer->count == 0)
@@ -206,8 +206,8 @@ int consumerGetLine(Buffer *buffer, char *line)
     return 0;
 }
 
-// Thread-safe function to add line onto buffer
-int producerPutLine(Buffer *buffer, char *line)
+// Thread-safe function to add line onto bufferconst 
+int producerPutLine(Buffer *const buffer, char *const line)
 {
     pthread_mutex_lock(&buffer->mutex);
     while (buffer->count == BUFFERSIZE) // sleep producer if buffer is full, wait for empty signal from consumerGetLine()
@@ -223,7 +223,7 @@ int producerPutLine(Buffer *buffer, char *line)
 };
 
 // helper function for plusSignRemove() thread
-int _plusSignRemove(char *line)
+int _plusSignRemove(char * line)
 {
     // line is not end marker, process line.
     //producer: replace every instance of ++ with ^
