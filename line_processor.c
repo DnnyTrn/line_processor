@@ -174,7 +174,7 @@ int init()
         }
         r = pthread_cond_init(&buffer_array[i].full, NULL); // ERROR handler for pthread_cond_init without exit()
         if (r != 0)
-            perror("pthread_cond_init error"); 
+            perror("pthread_cond_init error");
         r = pthread_cond_init(&buffer_array[i].empty, NULL);
         if (r != 0)
             perror("pthread_cond_init error");
@@ -213,7 +213,7 @@ void checkExitWord(Buffer *buffer, const char *line, const char *exitWord, int *
     {
         if (buffer != NULL) //for producer threads only.
             producerPutLine(buffer, END_MARKER); // put end marker onto buffer as a producer to signal consumer when to stop working
-        *work = 0;   //exit while loop of current thread to stop working and return to main
+        *work = 0; //exit while loop of current thread to stop working and return to main
     }
 }
 
@@ -223,10 +223,10 @@ int consumerGetLine(Buffer *buffer, char *line)
     while (buffer->count == 0)
         pthread_cond_wait(&buffer->full, &buffer->mutex); // sleep consumer if buffer is empty, wait for full signal from producer thread
 
-    strcpy(line, buffer->input[buffer->use_ptr]); // consumer: get line from buffer 
+    strcpy(line, buffer->input[buffer->use_ptr]); // consumer: get line from buffer
     buffer->use_ptr = (buffer->use_ptr + 1) % BUFFERSIZE; // point to the next index on buffer for consumer to grab next (wraps around to 0)
     buffer->count--; // decrement buffer count
- 
+
     pthread_cond_signal(&buffer->empty); // signal empty to waiting producer threads (producerLock() function), release lock to buffer
     pthread_mutex_unlock(&buffer->mutex);
     return 0;
@@ -237,10 +237,10 @@ int producerPutLine(Buffer *buffer, char *line)
     pthread_mutex_lock(&buffer->mutex);
     while (buffer->count == BUFFERSIZE) // sleep producer if buffer is full, wait for empty signal from consumerGetLine()
         pthread_cond_wait(&buffer->empty, &buffer->mutex);
-    
-    strcpy(buffer->input[buffer->fill_ptr], line);  //put line onto buffer
+
+    strcpy(buffer->input[buffer->fill_ptr], line); //put line onto buffer
     buffer->fill_ptr = (buffer->fill_ptr + 1) % BUFFERSIZE; //point to next index on buffer for producer  (wraps around to 0)
-    buffer->count++;    // increase buffer count
+    buffer->count++; // increase buffer count
 
     pthread_cond_signal(&buffer->full);
     pthread_mutex_unlock(&buffer->mutex);
