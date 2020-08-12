@@ -28,10 +28,7 @@ void *getInput(void *args);
 void *sendOut(void *arg);
 void *plusSignRemove(void *args);
 int _plusSignRemove(char *line);
-int producerLock(Buffer *buffer);
-int producerUnlock(Buffer *buffer);
 void checkExitWord(Buffer *buffer, const char *line, const char *exitWord, int *work);
-int _incrementProducerIndex(Buffer *buffer);
 int producerPutLine(Buffer *buffer, char *line);
 int consumerGetLine(Buffer *buffer, char *line);
 
@@ -102,7 +99,7 @@ void *plusSignRemove(void *arg)
     int work = 1;
     while (work)
     {
-        consumerGetLine(bufferConsumer, line);
+        consumerGetLine(bufferConsumer, line);  //grab line from buffer 1 (threadsafe)
         checkExitWord(bufferProducer, line, END_MARKER, &work); // check if line is end marker
         if (work == 1)
         {
@@ -146,7 +143,7 @@ void *sendOut(void *arg)
     return NULL;
 }
 
-// destroy all mutexes in buffer_array
+// destroy all mutexes and condvars in buffer_array
 // Precondition: struct Buffer buffer_array[NUM_BUFFERS] exists in global scope
 int destroy()
 {
@@ -183,30 +180,6 @@ int init()
     return r;
 }
 
-// producerLock: function used to aquire mutex on buffer. Producer waits if buffer is full.
-int producerLock(Buffer *buffer)
-{
-    pthread_mutex_lock(&buffer->mutex);
-    while (buffer->count == BUFFERSIZE) // sleep producer if buffer is full, wait for empty signal from consumerGetLine()
-        pthread_cond_wait(&buffer->empty, &buffer->mutex);
-    return 0;
-}
-
-// producerUnlock: function used to wake Consumer threads and release mutex on buffer
-int producerUnlock(Buffer *buffer)
-{
-    pthread_cond_signal(&buffer->full);
-    pthread_mutex_unlock(&buffer->mutex);
-    return 0;
-}
-
-int _incrementProducerIndex(Buffer *buffer)
-{
-    size_t *fill_ptr = &buffer->fill_ptr; //producer's index to buffer
-    *fill_ptr = (*fill_ptr + 1) % BUFFERSIZE;
-    buffer->count++;
-    return 0;
-}
 void checkExitWord(Buffer *buffer, const char *line, const char *exitWord, int *work)
 {
     if (strcmp(exitWord, line) == 0) //check if line is the exit word.
@@ -217,6 +190,7 @@ void checkExitWord(Buffer *buffer, const char *line, const char *exitWord, int *
     }
 }
 
+// Thread-safe function to aquire line from buffer
 int consumerGetLine(Buffer *buffer, char *line)
 {
     pthread_mutex_lock(&buffer->mutex); //consumer aquire lock on buffer
@@ -232,6 +206,7 @@ int consumerGetLine(Buffer *buffer, char *line)
     return 0;
 }
 
+// Thread-safe function to add line onto buffer
 int producerPutLine(Buffer *buffer, char *line)
 {
     pthread_mutex_lock(&buffer->mutex);
