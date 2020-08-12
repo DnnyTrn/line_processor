@@ -66,7 +66,6 @@ void *getInput(void *args)
             producerPutLine(buffer, line); // produce lines by storing stdin into buffer
         }
     }
-
     return NULL;
 }
 // Thread function that converts the line separator into a space
@@ -87,7 +86,6 @@ void *lineSeparator(void *args)
             producerPutLine(bufferProducer, line); //put worked on line onto buffer 2
         }
     }
-
     return NULL;
 }
 // Consumer and Producer thread that works between buffer 2 and 3 to replace every instance of ++ with ^
@@ -140,7 +138,6 @@ void *sendOut(void *arg)
             fflush(stdout);
         }
     }
-
     return NULL;
 }
 
@@ -177,7 +174,6 @@ int init()
         if (r != 0)
             perror("pthread_cond_init error");
     }
-
     return r;
 }
 
