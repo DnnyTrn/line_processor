@@ -14,17 +14,15 @@
 typedef struct
 {
     char input[BUFFERSIZE][INPUTLINE_LENGTH + 1];
-    pthread_mutex_t mutex;
     size_t count, fill_ptr, use_ptr;
+    pthread_mutex_t mutex;
     pthread_cond_t full, empty;
 } Buffer;
 
 Buffer buffer_array[NUM_BUFFERS] = {0};
 
-// pthread_cond_t full, empty;
-
 int init();
-int destroyMutex();
+int destroy();
 void *lineSeparator(void *args);
 void *getInput(void *args);
 void *sendOut(void *arg);
@@ -51,7 +49,7 @@ int main(void)
     pthread_join(thread[1], NULL);
     pthread_join(thread[2], NULL);
     pthread_join(thread[3], NULL);
-    destroyMutex();
+    destroy();
     return 0;
 }
 
@@ -70,7 +68,7 @@ void *getInput(void *args)
             producerPutLine(buffer, line); // produce lines by storing stdin into buffer
         }
     }
-    fprintf(stderr, "1 - getinput done\n");
+
     return NULL;
 }
 // Thread function that converts the line separator into a space
@@ -91,7 +89,7 @@ void *lineSeparator(void *args)
             producerPutLine(bufferProducer, line); //put worked on line onto buffer 2
         }
     }
-    fprintf(stderr, "2 - lineSeparator done\n");
+
     return NULL;
 }
 // Consumer and Producer thread that works between buffer 2 and 3 to replace every instance of ++ with ^
@@ -112,7 +110,6 @@ void *plusSignRemove(void *arg)
             producerPutLine(bufferProducer, line); // put formatted line onto buffer 3, increment fill_ptr and buffer 3 count
         }
     }
-        fprintf(stderr, "3 - plusSign done\n");
     return NULL;
 }
 
@@ -145,20 +142,21 @@ void *sendOut(void *arg)
             fflush(stdout);
         }
     }
-    fprintf(stderr, "4 - sendout done\n");
+
     return NULL;
 }
 
 // destroy all mutexes in buffer_array
 // Precondition: struct Buffer buffer_array[NUM_BUFFERS] exists in global scope
-int destroyMutex()
+int destroy()
 {
     int i, r = 0;
     for (i = 0; i < NUM_BUFFERS; i++)
     {
         r = pthread_mutex_destroy(&buffer_array[i].mutex);
+        r = pthread_cond_destroy(&buffer_array[i].empty);
+        r = pthread_cond_destroy(&buffer_array[i].full);
     }
-    pthread_cond_destroy(&full);
     return r;
 }
 
@@ -190,14 +188,14 @@ int producerLock(Buffer *buffer)
 {
     pthread_mutex_lock(&buffer->mutex);
     while (buffer->count == BUFFERSIZE) // sleep producer if buffer is full, wait for empty signal from consumerGetLine()
-        pthread_cond_wait(&empty, &buffer->mutex);
+        pthread_cond_wait(&buffer->empty, &buffer->mutex);
     return 0;
 }
 
 // producerUnlock: function used to wake Consumer threads and release mutex on buffer
 int producerUnlock(Buffer *buffer)
 {
-    pthread_cond_signal(&full);
+    pthread_cond_signal(&buffer->full);
     pthread_mutex_unlock(&buffer->mutex);
     return 0;
 }
@@ -223,13 +221,13 @@ int consumerGetLine(Buffer *buffer, char *line)
 {
     pthread_mutex_lock(&buffer->mutex); //consumer aquire lock on buffer
     while (buffer->count == 0)
-        pthread_cond_wait(&full, &buffer->mutex); // sleep consumer if buffer is empty, wait for full signal from producer thread
+        pthread_cond_wait(&buffer->full, &buffer->mutex); // sleep consumer if buffer is empty, wait for full signal from producer thread
 
-    strcpy(line, buffer->input[buffer->use_ptr]); // consumer: get line from buffer , increment consumer index and decrement buffer count
-    buffer->use_ptr = (buffer->use_ptr + 1) % BUFFERSIZE;
-    buffer->count--;
-
-    pthread_cond_signal(&empty); // signal empty to waiting producer threads (producerLock() function), release lock to buffer
+    strcpy(line, buffer->input[buffer->use_ptr]); // consumer: get line from buffer 
+    buffer->use_ptr = (buffer->use_ptr + 1) % BUFFERSIZE; // point to the next index on buffer for consumer to grab next (wraps around to 0)
+    buffer->count--; // decrement buffer count
+ 
+    pthread_cond_signal(&buffer->empty); // signal empty to waiting producer threads (producerLock() function), release lock to buffer
     pthread_mutex_unlock(&buffer->mutex);
     return 0;
 }
@@ -238,14 +236,13 @@ int producerPutLine(Buffer *buffer, char *line)
 {
     pthread_mutex_lock(&buffer->mutex);
     while (buffer->count == BUFFERSIZE) // sleep producer if buffer is full, wait for empty signal from consumerGetLine()
-        pthread_cond_wait(&empty, &buffer->mutex);
+        pthread_cond_wait(&buffer->empty, &buffer->mutex);
     
-    strcpy(buffer->input[buffer->fill_ptr], line);
-    buffer->fill_ptr = (buffer->fill_ptr + 1) % BUFFERSIZE;
-    buffer->count++;
-    // _incrementProducerIndex(buffer);
-    
-    pthread_cond_signal(&full);
+    strcpy(buffer->input[buffer->fill_ptr], line);  //put line onto buffer
+    buffer->fill_ptr = (buffer->fill_ptr + 1) % BUFFERSIZE; //point to next index on buffer for producer  (wraps around to 0)
+    buffer->count++;    // increase buffer count
+
+    pthread_cond_signal(&buffer->full);
     pthread_mutex_unlock(&buffer->mutex);
     return 0;
 };
