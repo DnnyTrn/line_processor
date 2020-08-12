@@ -64,14 +64,14 @@ void *getInput(void *args)
     {
         fgets(line, INPUTLINE_LENGTH + 1, stdin);
 
-        producerLock(buffer); // sleep producer if buffer is full, wait for empty signal
+        // producerLock(buffer); // sleep producer if buffer is full, wait for empty signal
 
         checkExitWord(buffer, line, "DONE\n", &work);
         if (work == 1)
         {
             producerPutLine(buffer, line); // produce lines by storing stdin into buffer
         }
-        producerUnlock(buffer);
+        // producerUnlock(buffer);
     }
     return NULL;
 }
@@ -86,7 +86,7 @@ void *lineSeparator(void *args)
     while (work)
     {
         consumerGetLine(bufferConsumer, line);                  //aquire line from buffer 1
-        producerLock(bufferProducer);                           // producer: aquire lock for buffer 2
+        // producerLock(bufferProducer);                           // producer: aquire lock for buffer 2
         checkExitWord(bufferProducer, line, END_MARKER, &work); // check if line is end marker..
 
         if (work == 1)
@@ -94,7 +94,7 @@ void *lineSeparator(void *args)
             line[strcspn(line, "\n")] = ' ';       // producer work: remove newline from line
             producerPutLine(bufferProducer, line); //put worked on line onto buffer 2
         }
-        producerUnlock(bufferProducer); // signal full to plus sign thread, release lock on buffer 2
+        // producerUnlock(bufferProducer); // signal full to plus sign thread, release lock on buffer 2
     }
     return NULL;
 }
@@ -109,14 +109,14 @@ void *plusSignRemove(void *arg)
     while (work)
     {
         consumerGetLine(bufferConsumer, line);
-        producerLock(bufferProducer);
+        // producerLock(bufferProducer);
         checkExitWord(bufferProducer, line, END_MARKER, &work); // check if line is end marker
         if (work == 1)
         {
             _plusSignRemove(line); //producer work: replace every instance of ++ with ^
             producerPutLine(bufferProducer, line); // put formatted line onto buffer 3, increment fill_ptr and buffer 3 count
         }
-        producerUnlock(bufferProducer); // signal to waiting threads that buffer 3 has lines, release mutex lock on buffer 3
+        // producerUnlock(bufferProducer); // signal to waiting threads that buffer 3 has lines, release mutex lock on buffer 3
     }
     return NULL;
 }
@@ -241,8 +241,14 @@ int consumerGetLine(Buffer *buffer, char *line)
 
 int producerPutLine(Buffer *buffer, char *line)
 {
+    pthread_mutex_lock(&buffer->mutex);
+    while (buffer->count == BUFFERSIZE) // sleep producer if buffer is full, wait for empty signal from consumerGetLine()
+        pthread_cond_wait(&empty, &buffer->mutex);
+    
     strcpy(buffer->input[buffer->fill_ptr], line);
     _incrementProducerIndex(buffer);
+    pthread_cond_signal(&full);
+    pthread_mutex_unlock(&buffer->mutex);
     return 0;
 };
 
