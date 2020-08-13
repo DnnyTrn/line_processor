@@ -9,7 +9,7 @@
 #define OUTPUTLINE_LENGTH 80
 #define BUFFERSIZE 10
 #define NUM_BUFFERS 3
-#define END_MARKER "@@"
+#define END_MARKER "DONE\n"
 
 typedef struct
 {
@@ -58,14 +58,13 @@ void *getInput(void *args)
     int work = 1;
     while (work)
     {
-        fgets(line, INPUTLINE_LENGTH + 1, stdin);
-        checkExitWord(buffer, line, "DONE\n", &work);
+        fgets(line, INPUTLINE_LENGTH + 1, stdin); //fget reads n-1 chars and adds \0 at n
+        checkExitWord(buffer, line, END_MARKER, &work);
         if (work == 1)
         {
             producerPutLine(buffer, line); // produce lines by storing stdin into buffer
         }
     }
-
     return NULL;
 }
 // Thread function that converts the line separator into a space
@@ -86,9 +85,9 @@ void *lineSeparator(void *args)
             producerPutLine(bufferProducer, line); //put worked on line onto buffer 2
         }
     }
-
     return NULL;
 }
+
 // Consumer and Producer thread that works between buffer 2 and 3 to replace every instance of ++ with ^
 void *plusSignRemove(void *arg)
 {
@@ -139,7 +138,6 @@ void *sendOut(void *arg)
             fflush(stdout);
         }
     }
-
     return NULL;
 }
 
@@ -176,7 +174,6 @@ int init()
         if (r != 0)
             perror("pthread_cond_init error");
     }
-
     return r;
 }
 
@@ -225,12 +222,10 @@ int producerPutLine(Buffer *const buffer, char *const line)
 // helper function for plusSignRemove() thread
 int _plusSignRemove(char * line)
 {
-    // line is not end marker, process line.
-    //producer: replace every instance of ++ with ^
     size_t len = strlen(line), i, j;
     for (i = 0; i < len; i++)
     {
-        if (line[i] == '+' && line[i + 1] == '+')
+        if (line[i] == '+' && line[i + 1] == '+')    //producer: replace every instance of ++ with ^
         {
             line[i] = '^';
             for (j = i + 1; j < len - 1; j++)
