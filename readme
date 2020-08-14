@@ -1,1 +1,3 @@
 Multi-threaded Line Processor
+[Compile instructions]
+    $ gcc -pthread -o line_processor line_processor.c
