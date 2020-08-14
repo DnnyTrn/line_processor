@@ -178,6 +178,8 @@ int init()
     return r;
 }
 
+// checks line if equal to exitWord, sets work = 0 if true, puts END_MARKER on buffer using producerPutLine()
+//  pass NULL to buffer to prevent using producerPutLine() for consumer threads.
 void checkExitWord( Buffer *const buffer, char *const line,  char *const exitWord, int *const work)
 {
     if (strcmp(exitWord, line) == 0) //check if line is the exit word.
